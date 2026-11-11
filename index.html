@@ -23,6 +23,7 @@ button:disabled{opacity:.5}
 .analysis{background:#0c352e;border:1px solid #28765b;border-radius:10px;padding:12px;margin-top:12px;font-size:14px;line-height:1.8}
 .small{font-size:12px;color:#b5c5d5}
 .empty{padding:25px;text-align:center;color:#b5c5d5}
+.section{display:block;margin-top:8px;padding-top:7px;border-top:1px solid #28765b}
 </style>
 </head>
 <body>
@@ -115,7 +116,7 @@ async function loadMatches(){
   document.getElementById("summary").textContent=
    "Fikstür: "+fixtures.length+" • Geçmiş maç: "+results.length+" • Veri alınan lig: "+(jobs.length-errors);
   document.getElementById("status").textContent=
-   "Veri yükleme tamamlandı."+(errors?" Bazı liglerin dosyalarına ulaşılamadı.":"");
+   "Veri yükleme tamamlandı."+(errors?" Bazı liglerin dosyalarına ulaşılamadı":"");
   render();
  }catch(e){
   document.getElementById("status").textContent="Veri alınamadı: "+e.message+" İnternet bağlantısını kontrol edip tekrar dene.";
@@ -129,15 +130,15 @@ function dateKey(offset){
 }
 
 function stats(team,league,side){
- const name=team.toLowerCase();
+ const name=String(team||"").toLowerCase();
  const games=results.filter(m=>
   m.league===league &&
-  (m.home.toLowerCase()===name||m.away.toLowerCase()===name) &&
+  (String(m.home||"").toLowerCase()===name||String(m.away||"").toLowerCase()===name) &&
   m.ft_home!==""&&m.ft_away!==""
  ).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,10);
  let scored=0,conceded=0,count=0;
  for(const m of games){
-  const home=m.home.toLowerCase()===name;
+  const home=String(m.home||"").toLowerCase()===name;
   if(side==="home"&&!home)continue;
   if(side==="away"&&home)continue;
   scored+=Number(home?m.ft_home:m.ft_away);
@@ -148,9 +149,22 @@ function stats(team,league,side){
 }
 
 function pmf(mean,k){
+ if(k<0)return 0;
  let p=Math.exp(-mean);
  for(let i=1;i<=k;i++)p*=mean/i;
  return p;
+}
+
+function supportLabel(p){
+ if(p>=0.62)return "Güçlü destek";
+ if(p>=0.50)return "Orta destek";
+ return "Destek zayıf";
+}
+
+function over15Label(team,p){
+ if(p>=0.62)return team+" 1,5 üst olur · Güçlü destek";
+ if(p>=0.50)return team+" 1,5 üst değerlendirilebilir · Orta destek";
+ return team+" 1,5 üst için destek zayıf";
 }
 
 function analyze(m){
@@ -161,28 +175,39 @@ function analyze(m){
  }
  const homeGoal=Math.max(.2,Math.min(4,(h.scored+a.conceded)/2));
  const awayGoal=Math.max(.2,Math.min(4,(a.scored+h.conceded)/2));
- let home=0,draw=0,away=0,over=0,btts=0,best={p:0,x:0,y:0};
- for(let x=0;x<=7;x++){
-  for(let y=0;y<=7;y++){
+ const totalGoal=homeGoal+awayGoal;
+ let home=0,draw=0,away=0,best={p:0,x:0,y:0};
+ for(let x=0;x<=10;x++){
+  for(let y=0;y<=10;y++){
    const p=pmf(homeGoal,x)*pmf(awayGoal,y);
    if(x>y)home+=p;else if(x===y)draw+=p;else away+=p;
-   if(x+y>=2)over+=p;
-   if(x>0&&y>0)btts+=p;
    if(p>best.p)best={p,x,y};
   }
  }
- const outcome=home>draw&&home>away?"Ev sahibi kazanır":away>draw?"Deplasman kazanır":"Beraberlik";
- const overText=over>=.62?"1,5 üst olur":over<=.38?"1,5 üst için destek zayıf":"1,5 gol konusunda net sinyal yok";
+ const over15=1-Math.exp(-totalGoal)*(1+totalGoal);
+ const homeOver15=1-Math.exp(-homeGoal)*(1+homeGoal);
+ const awayOver15=1-Math.exp(-awayGoal)*(1+awayGoal);
+ const homeScore=1-Math.exp(-homeGoal);
+ const awayScore=1-Math.exp(-awayGoal);
+ const btts=homeScore*awayScore;
+ const outcome=home>draw&&home>away?"Ev sahibi kazanır":away>draw&&away>home?"Deplasman kazanır":"Beraberlik eğilimi";
+ const outcomeStrength=supportLabel(Math.max(home,draw,away));
+ const overText=over15>=.62?"1,5 üst olur":over15>=.50?"1,5 üst için orta destek var":"1,5 üst için destek zayıf";
  const bttsText=btts>=.62?"İki takım da gol atar":btts<=.38?"Karşılıklı gol beklenmiyor":"Karşılıklı gol konusunda net sinyal yok";
+ const homeScoreText=homeScore>=.70?"Ev sahibi gol atar · Güçlü destek":homeScore>=.55?"Ev sahibi gol atabilir · Orta destek":"Ev sahibi golü için destek zayıf";
+ const awayScoreText=awayScore>=.70?"Deplasman gol atar · Güçlü destek":awayScore>=.55?"Deplasman gol atabilir · Orta destek":"Deplasman golü için destek zayıf";
  return '<div class="analysis">'+
  '<b>📊 MAÇ ANALİZİ</b><br>'+
- 'Maç sonucu eğilimi: <b>'+outcome+'</b><br>'+
- '1,5 gol: <b>'+overText+'</b><br>'+
- 'Karşılıklı gol: <b>'+bttsText+'</b><br>'+
- 'En olası skor: <b>'+best.x+' - '+best.y+'</b><br>'+
- 'Ev sahibi gol ortalaması tahmini: '+homeGoal.toFixed(1)+'<br>'+
- 'Deplasman gol ortalaması tahmini: '+awayGoal.toFixed(1)+'<br>'+
- '<span class="small">Dayanak: Ev sahibinin '+h.count+', deplasmanın '+a.count+' iç saha/deplasman geçmiş maçı. Bu tahmin garanti değildir.</span></div>';
+ 'Maç sonucu eğilimi: <b>'+outcome+'</b> <span class="small">('+outcomeStrength+')</span><br>'+
+ 'Toplam gol: <b>'+overText+'</b> <span class="small">('+supportLabel(over15)+')</span><br>'+
+ '<span class="section"><b>TAKIM GOL ANALİZİ</b><br>'+
+ over15Label('Ev sahibi',homeOver15)+'<br>'+
+ over15Label('Deplasman',awayOver15)+'<br>'+
+ homeScoreText+'<br>'+awayScoreText+'</span>'+
+ '<span class="section">Karşılıklı gol: <b>'+bttsText+'</b><br>'+
+ 'En olası skor: <b>'+best.x+' - '+best.y+'</b></span>'+
+ '<span class="small">Tahmini gol ortalamaları: Ev sahibi '+homeGoal.toFixed(1)+' • Deplasman '+awayGoal.toFixed(1)+'<br>'+
+ 'Dayanak: Ev sahibinin '+h.count+', deplasmanın '+a.count+' iç saha/deplasman geçmiş maçı. Tahmin garanti değildir.</span></div>';
 }
 
 function render(){
@@ -216,3 +241,4 @@ document.getElementById("day").addEventListener("change",()=>{if(loaded)render()
 </script>
 </body>
 </html>
+
