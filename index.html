@@ -7,58 +7,212 @@
 <title>Maç Analiz Merkezi</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#08111f;color:#fff;font-family:Arial,sans-serif}
-header{padding:22px;background:#101e31;border-bottom:1px solid #263950}
-h1{margin:0;color:#42e6a4;font-size:24px}
-header p{color:#a9bacb;margin-bottom:0}
-main{padding:16px;max-width:850px;margin:auto}
-.card{background:#132238;padding:17px;border-radius:14px;margin:14px 0;border:1px solid #263950}
-h2{font-size:18px;color:#42e6a4}
-input,button{width:100%;padding:14px;border-radius:9px;border:0;margin-top:10px;font-size:16px}
-input{background:#091524;color:white;border:1px solid #40536b}
-button{background:#42e6a4;color:#071522;font-weight:bold}
-.muted{color:#a9bacb;font-size:13px;line-height:1.5}
-#matches{line-height:1.7}
+body{margin:0;background:#081525;color:#f4f7fb;font-family:Arial,sans-serif}
+header{padding:22px;background:#10243b;border-bottom:1px solid #29445f}
+h1{font-size:23px;margin:0 0 8px}
+p{color:#b5c5d5;font-size:13px;line-height:1.5}
+main{max-width:850px;margin:auto;padding:15px}
+.panel,.match{background:#112941;border:1px solid #29445f;border-radius:13px;padding:15px;margin-bottom:13px}
+button,select{padding:12px;border:1px solid #3b6585;border-radius:9px;background:#174365;color:white;font-size:14px}
+button{background:#087b56;font-weight:bold}
+button:disabled{opacity:.5}
+.status{font-size:13px;color:#b5c5d5;margin-top:13px;line-height:1.5}
+.match{margin-bottom:12px}
+.league{font-size:11px;color:#83bdf0;margin-bottom:8px}
+.teams{font-weight:bold;font-size:17px}
+.analysis{background:#0c352e;border:1px solid #28765b;border-radius:10px;padding:12px;margin-top:12px;font-size:14px;line-height:1.8}
+.small{font-size:12px;color:#b5c5d5}
+.empty{padding:25px;text-align:center;color:#b5c5d5}
 </style>
 </head>
 <body>
 <header>
 <h1>⚽ MAÇ ANALİZ MERKEZİ</h1>
-<p>Profesyonel futbol analiz platformu</p>
+<p>Ücretsiz futbol verileri ve istatistiksel maç analizi</p>
 </header>
 <main>
-<div class="card">
-<h2>📅 Günün Maçları</h2>
-<p class="muted">Gerçek maç verileri kaynağa bağlandığında burada listelenecek.</p>
-<button onclick="loadMatches()">Maçları Getir</button>
-<div id="matches">Henüz maç verisi yüklenmedi.</div>
+<div class="panel">
+<button id="load">↻ MAÇLARI GETİR</button>
+<select id="day">
+<option value="0">Bugün</option>
+<option value="1">Yarın</option>
+<option value="2">2 gün sonra</option>
+<option value="3">3 gün sonra</option>
+<option value="4">4 gün sonra</option>
+<option value="5">5 gün sonra</option>
+<option value="6">6 gün sonra</option>
+<option value="7">7 gün sonra</option>
+</select>
+<div id="status" class="status">Maçları yüklemek için düğmeye dokun.</div>
+<p id="summary"></p>
 </div>
-<div class="card">
-<h2>🔎 Maç Analizi</h2>
-<input id="home" placeholder="Ev sahibi takım">
-<input id="away" placeholder="Deplasman takımı">
-<button onclick="analyze()">Analiz Et</button>
-<div id="result"></div>
-</div>
-<div class="card">
-<h2>📊 Analiz Kriterleri</h2>
-<p class="muted">Takımların son maçları, iç saha ve deplasman performansı, attıkları ve yedikleri goller, form durumu ve veri güvenilirliği.</p>
-</div>
-<p class="muted">Not: Bu ilk sürüm arayüzdür. Gerçek veriye bağlanmadan tahmin üretmez. Tahminler kesin sonuç değildir.</p>
+<h3>Günün Maçları</h3>
+<div id="matches"><div class="empty">Henüz maç yüklenmedi.</div></div>
+<p class="small">Veri kaynağı: open-matchday. Veriler günlük güncellenir; canlı skor değildir. Sakatlık ve ilk 11 bilgisi bu kaynakta bulunmaz. Tahminler istatistiksel model tahminidir, garanti değildir.</p>
 </main>
 <script>
-function loadMatches(){
-document.getElementById("matches").innerText=
-"Maç veri kaynağı henüz bağlanmadı. Gerçek fikstür bağlantısı sonraki aşamada eklenecek.";
+const BASE="https://raw.githubusercontent.com/oladeeayo/open-matchday/master/";
+let fixtures=[],results=[],loaded=false;
+
+function parseCSV(s){
+ const lines=s.trim().split(/\r?\n/);
+ if(lines.length<2)return [];
+ const headers=lines.shift().split(",");
+ return lines.map(line=>{
+  const cells=[];let value="",quote=false;
+  for(let i=0;i<line.length;i++){
+   const c=line[i];
+   if(c==='"'){if(quote&&line[i+1]==='"'){value+='"';i++}else quote=!quote}
+   else if(c===","&&!quote){cells.push(value);value=""}
+   else value+=c;
+  }
+  cells.push(value);
+  const obj={};
+  headers.forEach((h,i)=>obj[h.trim()]=(cells[i]||"").trim());
+  return obj;
+ });
 }
-function analyze(){
-let h=document.getElementById("home").value.trim();
-let a=document.getElementById("away").value.trim();
-if(!h||!a){alert("İki takımın adını da gir.");return;}
-document.getElementById("result").innerHTML=
-"<p>⚠️ "+h+" - "+a+"</p><p class='muted'>Gerçek takım istatistikleri henüz alınmadığı için güvenilir tahmin üretilemiyor.</p>";
+
+async function get(url){
+ const r=await fetch(url);
+ if(!r.ok)throw Error("Veri dosyasına ulaşılamadı: "+r.status);
+ return await r.text();
 }
+
+function safe(s){
+ return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function loadMatches(){
+ const btn=document.getElementById("load");
+ btn.disabled=true;
+ fixtures=[];results=[];
+ document.getElementById("status").textContent="Lig listesi alınıyor...";
+ try{
+  const index=await get(BASE+"LEAGUE_INDEX.md");
+  const folders=[...index.matchAll(/^\|\s*`([^`]+)`\s*\|\s*([^|]+)\|/gm)];
+  if(!folders.length)throw Error("Lig listesi okunamadı.");
+  let finished=0,errors=0;
+  const jobs=folders.map(m=>({folder:m[1],league:m[2].trim()}));
+  let next=0;
+  async function worker(){
+   while(next<jobs.length){
+    const job=jobs[next++];
+    try{
+     const [f,r]=await Promise.all([
+      get(BASE+"data/"+job.folder+"/fixtures_2627.csv"),
+      get(BASE+"data/"+job.folder+"/results_2627.csv")
+     ]);
+     fixtures.push(...parseCSV(f).map(x=>({...x,league:job.league})));
+     results.push(...parseCSV(r).map(x=>({...x,league:job.league})));
+    }catch(e){errors++}
+    finished++;
+    document.getElementById("status").textContent="Ligler kontrol ediliyor: "+finished+"/"+jobs.length;
+   }
+  }
+  await Promise.all(Array.from({length:6},worker));
+  loaded=true;
+  document.getElementById("summary").textContent=
+   "Fikstür: "+fixtures.length+" • Geçmiş maç: "+results.length+" • Veri alınan lig: "+(jobs.length-errors);
+  document.getElementById("status").textContent=
+   "Veri yükleme tamamlandı."+(errors?" Bazı liglerin dosyalarına ulaşılamadı.":"");
+  render();
+ }catch(e){
+  document.getElementById("status").textContent="Veri alınamadı: "+e.message+" İnternet bağlantısını kontrol edip tekrar dene.";
+ }finally{btn.disabled=false}
+}
+
+function dateKey(offset){
+ const d=new Date();
+ d.setDate(d.getDate()+offset);
+ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+function stats(team,league,side){
+ const name=team.toLowerCase();
+ const games=results.filter(m=>
+  m.league===league &&
+  (m.home.toLowerCase()===name||m.away.toLowerCase()===name) &&
+  m.ft_home!==""&&m.ft_away!==""
+ ).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,10);
+ let scored=0,conceded=0,count=0;
+ for(const m of games){
+  const home=m.home.toLowerCase()===name;
+  if(side==="home"&&!home)continue;
+  if(side==="away"&&home)continue;
+  scored+=Number(home?m.ft_home:m.ft_away);
+  conceded+=Number(home?m.ft_away:m.ft_home);
+  count++;
+ }
+ return {count,scored:count?scored/count:0,conceded:count?conceded/count:0};
+}
+
+function pmf(mean,k){
+ let p=Math.exp(-mean);
+ for(let i=1;i<=k;i++)p*=mean/i;
+ return p;
+}
+
+function analyze(m){
+ const h=stats(m.home,m.league,"home");
+ const a=stats(m.away,m.league,"away");
+ if(h.count<3||a.count<3){
+  return '<div class="analysis">Yeterli geçmiş veri bulunamadı. Güvenilir tahmin üretmiyoruz.</div>';
+ }
+ const homeGoal=Math.max(.2,Math.min(4,(h.scored+a.conceded)/2));
+ const awayGoal=Math.max(.2,Math.min(4,(a.scored+h.conceded)/2));
+ let home=0,draw=0,away=0,over=0,btts=0,best={p:0,x:0,y:0};
+ for(let x=0;x<=7;x++){
+  for(let y=0;y<=7;y++){
+   const p=pmf(homeGoal,x)*pmf(awayGoal,y);
+   if(x>y)home+=p;else if(x===y)draw+=p;else away+=p;
+   if(x+y>=2)over+=p;
+   if(x>0&&y>0)btts+=p;
+   if(p>best.p)best={p,x,y};
+  }
+ }
+ const outcome=home>draw&&home>away?"Ev sahibi kazanır":away>draw?"Deplasman kazanır":"Beraberlik";
+ const overText=over>=.62?"1,5 üst olur":over<=.38?"1,5 üst için destek zayıf":"1,5 gol konusunda net sinyal yok";
+ const bttsText=btts>=.62?"İki takım da gol atar":btts<=.38?"Karşılıklı gol beklenmiyor":"Karşılıklı gol konusunda net sinyal yok";
+ return '<div class="analysis">'+
+ '<b>📊 MAÇ ANALİZİ</b><br>'+
+ 'Maç sonucu eğilimi: <b>'+outcome+'</b><br>'+
+ '1,5 gol: <b>'+overText+'</b><br>'+
+ 'Karşılıklı gol: <b>'+bttsText+'</b><br>'+
+ 'En olası skor: <b>'+best.x+' - '+best.y+'</b><br>'+
+ 'Ev sahibi gol ortalaması tahmini: '+homeGoal.toFixed(1)+'<br>'+
+ 'Deplasman gol ortalaması tahmini: '+awayGoal.toFixed(1)+'<br>'+
+ '<span class="small">Dayanak: Ev sahibinin '+h.count+', deplasmanın '+a.count+' iç saha/deplasman geçmiş maçı. Bu tahmin garanti değildir.</span></div>';
+}
+
+function render(){
+ const key=dateKey(Number(document.getElementById("day").value));
+ const list=fixtures.filter(m=>m.date===key);
+ const area=document.getElementById("matches");
+ if(!list.length){
+  area.innerHTML='<div class="empty">Bu tarih için kaynakta maç bulunamadı. Başka bir gün seçebilirsin.</div>';
+  return;
+ }
+ area.innerHTML=list.map((m,i)=>
+  '<div class="match">'+
+  '<div class="league">'+safe(m.league)+'</div>'+
+  '<div class="teams">'+safe(m.home)+' - '+safe(m.away)+'</div>'+
+  '<p class="small">'+safe(m.date)+' • '+safe(m.time||"Saat belirtilmemiş")+'</p>'+
+  '<button data-id="'+i+'">MAÇI ANALİZ ET</button>'+
+  '<div id="analysis'+i+'"></div></div>'
+ ).join("");
+ area.querySelectorAll("button[data-id]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+   const m=list[Number(btn.dataset.id)];
+   document.getElementById("analysis"+btn.dataset.id).innerHTML=analyze(m);
+   btn.disabled=true;
+   btn.textContent="Analiz tamamlandı";
+  });
+ });
+}
+
+document.getElementById("load").addEventListener("click",loadMatches);
+document.getElementById("day").addEventListener("change",()=>{if(loaded)render()});
 </script>
 </body>
 </html>
-
