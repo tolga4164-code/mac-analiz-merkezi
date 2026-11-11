@@ -1,0 +1,64 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maç Analiz Merkezi</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#08111f;color:#fff;font-family:Arial,sans-serif}
+header{padding:22px;background:#101e31;border-bottom:1px solid #263950}
+h1{margin:0;color:#42e6a4;font-size:24px}
+header p{color:#a9bacb;margin-bottom:0}
+main{padding:16px;max-width:850px;margin:auto}
+.card{background:#132238;padding:17px;border-radius:14px;margin:14px 0;border:1px solid #263950}
+h2{font-size:18px;color:#42e6a4}
+input,button{width:100%;padding:14px;border-radius:9px;border:0;margin-top:10px;font-size:16px}
+input{background:#091524;color:white;border:1px solid #40536b}
+button{background:#42e6a4;color:#071522;font-weight:bold}
+.muted{color:#a9bacb;font-size:13px;line-height:1.5}
+#matches{line-height:1.7}
+</style>
+</head>
+<body>
+<header>
+<h1>⚽ MAÇ ANALİZ MERKEZİ</h1>
+<p>Profesyonel futbol analiz platformu</p>
+</header>
+<main>
+<div class="card">
+<h2>📅 Günün Maçları</h2>
+<p class="muted">Gerçek maç verileri kaynağa bağlandığında burada listelenecek.</p>
+<button onclick="loadMatches()">Maçları Getir</button>
+<div id="matches">Henüz maç verisi yüklenmedi.</div>
+</div>
+<div class="card">
+<h2>🔎 Maç Analizi</h2>
+<input id="home" placeholder="Ev sahibi takım">
+<input id="away" placeholder="Deplasman takımı">
+<button onclick="analyze()">Analiz Et</button>
+<div id="result"></div>
+</div>
+<div class="card">
+<h2>📊 Analiz Kriterleri</h2>
+<p class="muted">Takımların son maçları, iç saha ve deplasman performansı, attıkları ve yedikleri goller, form durumu ve veri güvenilirliği.</p>
+</div>
+<p class="muted">Not: Bu ilk sürüm arayüzdür. Gerçek veriye bağlanmadan tahmin üretmez. Tahminler kesin sonuç değildir.</p>
+</main>
+<script>
+function loadMatches(){
+document.getElementById("matches").innerText=
+"Maç veri kaynağı henüz bağlanmadı. Gerçek fikstür bağlantısı sonraki aşamada eklenecek.";
+}
+function analyze(){
+let h=document.getElementById("home").value.trim();
+let a=document.getElementById("away").value.trim();
+if(!h||!a){alert("İki takımın adını da gir.");return;}
+document.getElementById("result").innerHTML=
+"<p>⚠️ "+h+" - "+a+"</p><p class='muted'>Gerçek takım istatistikleri henüz alınmadığı için güvenilir tahmin üretilemiyor.</p>";
+}
+</script>
+</body>
+</html>
+
