@@ -238,6 +238,175 @@ function render(){
 
 document.getElementById("load").addEventListener("click",loadMatches);
 document.getElementById("day").addEventListener("change",()=>{if(loaded)render()});
+ // ===== TAHMİN BAŞARI TAKİBİ =====
+(function(){
+ const KEY="macAnalizTahminleri_v1";
+
+ function read(){
+  try{return JSON.parse(localStorage.getItem(KEY)||"[]")}
+  catch(e){return []}
+ }
+
+ function norm(s){
+  return String(s||"").trim().toLocaleLowerCase("tr-TR");
+ }
+
+ function panel(){
+  if(document.getElementById("trackingPanel"))return;
+  const h=document.querySelector("h3");
+  if(!h)return;
+  h.insertAdjacentHTML("beforebegin",`
+   <div class="panel" id="trackingPanel">
+    <h3>📊 TAHMİN BAŞARI TAKİBİ</h3>
+    <div id="trackingStats">Henüz kayıtlı tahmin yok.</div>
+    <p class="small">Tahminler bu telefondaki tarayıcıda saklanır.</p>
+   </div>
+  `);
+ }
+
+ function update(){
+  panel();
+  const list=read();
+  const area=document.getElementById("trackingStats");
+  if(!area)return;
+
+  const types=["outcome","over","homeOver","awayOver","btts"];
+  const labels={
+   outcome:"Maç sonucu",
+   over:"Toplam 1,5 üst",
+   homeOver:"Ev sahibi 1,5 üst",
+   awayOver:"Deplasman 1,5 üst",
+   btts:"Karşılıklı gol"
+  };
+
+  let html="";
+  for(const type of types){
+   const done=list.filter(x=>x.checked&&x.pred[type]!==null&&x.pred[type]!==undefined);
+   const correct=done.filter(x=>x.pred[type]===x.actual[type]).length;
+   html+=`<div style="padding:7px 0;border-bottom:1px solid #29445f">
+    <b>${labels[type]}:</b> ${correct}/${done.length} doğru
+   </div>`;
+  }
+  const pending=list.filter(x=>!x.checked).length;
+  area.innerHTML=html+
+   `<p>Kaydedilen tahmin: <b>${list.length}</b><br>
+   Sonucu beklenen maç: <b>${pending}</b></p>`;
+ }
+
+ function calculate(m){
+  const h=stats(m.home,m.league,"home");
+  const a=stats(m.away,m.league,"away");
+  if(h.count<3||a.count<3)return null;
+
+  const hg=Math.max(.2,Math.min(4,(h.scored+a.conceded)/2));
+  const ag=Math.max(.2,Math.min(4,(a.scored+h.conceded)/2));
+  let home=0,draw=0,away=0;
+
+  for(let x=0;x<=10;x++){
+   for(let y=0;y<=10;y++){
+    const p=pmf(hg,x)*pmf(ag,y);
+    if(x>y)home+=p;
+    else if(x===y)draw+=p;
+    else away+=p;
+   }
+  }
+
+  const total=hg+ag;
+  const over=1-Math.exp(-total)*(1+total);
+  const homeOver=1-Math.exp(-hg)*(1+hg);
+  const awayOver=1-Math.exp(-ag)*(1+ag);
+  const btts=(1-Math.exp(-hg))*(1-Math.exp(-ag));
+
+  return {
+   outcome:home>draw&&home>away?"home":
+    away>draw&&away>home?"away":"draw",
+   over:over>=.50,
+   homeOver:homeOver>=.50,
+   awayOver:awayOver>=.50,
+   btts:btts>=.62?true:btts<=.38?false:null
+  };
+ }
+
+ function save(m){
+  const pred=calculate(m);
+  if(!pred)return;
+
+  const list=read();
+  const exists=list.some(x=>
+   x.date===m.date&&norm(x.home)===norm(m.home)&&
+   norm(x.away)===norm(m.away)&&norm(x.league)===norm(m.league)
+  );
+  if(exists)return;
+
+  list.push({
+   date:m.date,
+   home:m.home,
+   away:m.away,
+   league:m.league,
+   pred:pred,
+   actual:{},
+   checked:false
+  });
+
+  localStorage.setItem(KEY,JSON.stringify(list));
+  update();
+ }
+
+ function checkResults(){
+  const list=read();
+  let changed=false;
+
+  for(const item of list){
+   if(item.checked)continue;
+
+   const result=results.find(r=>
+    r.date===item.date&&
+    norm(r.home)===norm(item.home)&&
+    norm(r.away)===norm(item.away)&&
+    norm(r.league)===norm(item.league)&&
+    r.ft_home!==""&&r.ft_away!==""
+   );
+
+   if(!result)continue;
+
+   const hg=Number(result.ft_home);
+   const ag=Number(result.ft_away);
+
+   item.actual={
+    outcome:hg>ag?"home":ag>hg?"away":"draw",
+    over:hg+ag>=2,
+    homeOver:hg>=2,
+    awayOver:ag>=2,
+    btts:hg>=1&&ag>=1
+   };
+   item.checked=true;
+   changed=true;
+  }
+
+  if(changed)localStorage.setItem(KEY,JSON.stringify(list));
+  update();
+ }
+
+ const originalAnalyze=analyze;
+ analyze=function(m){
+  const output=originalAnalyze(m);
+  try{save(m)}catch(e){console.log("Tahmin kaydedilemedi",e)}
+  return output;
+ };
+
+ const originalLoad=loadMatches;
+ loadMatches=async function(){
+  await originalLoad();
+  if(loaded)checkResults();
+ };
+
+ if(document.readyState==="loading"){
+  document.addEventListener("DOMContentLoaded",update);
+ }else{
+  update();
+ }
+})();
+// ===== TAKİP SİSTEMİ SONU =====
 </script>
 </body>
 </html>
