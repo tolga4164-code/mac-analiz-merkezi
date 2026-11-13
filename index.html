@@ -211,21 +211,41 @@ function dateKey(offset){
 
 function stats(team,league,side){
  const name=String(team||"").toLowerCase();
- const games=results.filter(m=>
-  m.league===league &&
-  (String(m.home||"").toLowerCase()===name||String(m.away||"").toLowerCase()===name) &&
-  m.ft_home!==""&&m.ft_away!==""
- ).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,10);
+
+ const valid=results.filter(m=>{
+  const home=String(m.home||"").toLowerCase()===name;
+  const away=String(m.away||"").toLowerCase()===name;
+  return (home||away)&&
+   m.ft_home!==""&&m.ft_away!==""&&
+   Number.isFinite(Number(m.ft_home))&&
+   Number.isFinite(Number(m.ft_away))&&
+   (side==="home"?home:side==="away"?away:true);
+ }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+ const sameLeague=valid.filter(m=>m.league===league);
+ let games=sameLeague;
+
+ if(sameLeague.length<3){
+  const otherLeagues=valid.filter(m=>m.league!==league);
+  games=[...sameLeague,...otherLeagues];
+ }
+
+ games=games.slice(0,10);
+
  let scored=0,conceded=0,count=0;
+
  for(const m of games){
   const home=String(m.home||"").toLowerCase()===name;
-  if(side==="home"&&!home)continue;
-  if(side==="away"&&home)continue;
   scored+=Number(home?m.ft_home:m.ft_away);
   conceded+=Number(home?m.ft_away:m.ft_home);
   count++;
  }
- return {count,scored:count?scored/count:0,conceded:count?conceded/count:0};
+
+ return {
+  count,
+  scored:count?scored/count:0,
+  conceded:count?conceded/count:0
+ };
 }
 
 function pmf(mean,k){
