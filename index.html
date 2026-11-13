@@ -210,24 +210,36 @@ function dateKey(offset){
 }
 
 function stats(team,league,side){
- const name=String(team||"").toLowerCase();
+ const name=String(team||"").trim().toLocaleLowerCase("tr-TR");
 
- const valid=results.filter(m=>{
-  const home=String(m.home||"").toLowerCase()===name;
-  const away=String(m.away||"").toLowerCase()===name;
-  return (home||away)&&
+ const all=results.filter(m=>{
+  const home=String(m.home||"").trim().toLocaleLowerCase("tr-TR");
+  const away=String(m.away||"").trim().toLocaleLowerCase("tr-TR");
+  return (home===name||away===name)&&
    m.ft_home!==""&&m.ft_away!==""&&
    Number.isFinite(Number(m.ft_home))&&
-   Number.isFinite(Number(m.ft_away))&&
-   (side==="home"?home:side==="away"?away:true);
+   Number.isFinite(Number(m.ft_away));
  }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
 
- const sameLeague=valid.filter(m=>m.league===league);
- let games=sameLeague;
+ const isSide=(m)=>{
+  const home=String(m.home||"").trim().toLocaleLowerCase("tr-TR")===name;
+  return side==="home"?home:!home;
+ };
 
- if(sameLeague.length<3){
-  const otherLeagues=valid.filter(m=>m.league!==league);
-  games=[...sameLeague,...otherLeagues];
+ const same=all.filter(m=>m.league===league);
+ const other=all.filter(m=>m.league!==league);
+
+ let games=[
+  ...same.filter(isSide),
+  ...other.filter(isSide)
+ ];
+
+ if(games.length<3){
+  games=[
+   ...games,
+   ...same.filter(m=>!isSide(m)),
+   ...other.filter(m=>!isSide(m))
+  ];
  }
 
  games=games.slice(0,10);
@@ -235,7 +247,7 @@ function stats(team,league,side){
  let scored=0,conceded=0,count=0;
 
  for(const m of games){
-  const home=String(m.home||"").toLowerCase()===name;
+  const home=String(m.home||"").trim().toLocaleLowerCase("tr-TR")===name;
   scored+=Number(home?m.ft_home:m.ft_away);
   conceded+=Number(home?m.ft_away:m.ft_home);
   count++;
@@ -247,7 +259,6 @@ function stats(team,league,side){
   conceded:count?conceded/count:0
  };
 }
-
 function pmf(mean,k){
  if(k<0)return 0;
  let p=Math.exp(-mean);
