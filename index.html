@@ -208,25 +208,37 @@ function dateKey(offset){
  d.setDate(d.getDate()+offset);
  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
+
+function normTeam(s){
+ return String(s||"")
+  .toLocaleLowerCase("tr-TR")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g,"")
+  .replace(/ı/g,"i")
+  .replace(/[^a-z0-9]/g,"");
+}
+
 function stats(team,league,side){
- const name=String(team||"").trim().toLocaleLowerCase("tr-TR");
+ const name=normTeam(team);
+ const leagueName=normTeam(league);
 
  const all=results.filter(m=>{
-  const home=String(m.home||"").trim().toLocaleLowerCase("tr-TR");
-  const away=String(m.away||"").trim().toLocaleLowerCase("tr-TR");
+  const home=normTeam(m.home);
+  const away=normTeam(m.away);
+
   return (home===name||away===name)&&
    m.ft_home!==""&&m.ft_away!==""&&
    Number.isFinite(Number(m.ft_home))&&
    Number.isFinite(Number(m.ft_away));
  }).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
 
- const isSide=(m)=>{
-  const home=String(m.home||"").trim().toLocaleLowerCase("tr-TR")===name;
+ const isSide=m=>{
+  const home=normTeam(m.home)===name;
   return side==="home"?home:!home;
  };
 
- const same=all.filter(m=>m.league===league);
- const other=all.filter(m=>m.league!==league);
+ const same=all.filter(m=>normTeam(m.league)===leagueName);
+ const other=all.filter(m=>normTeam(m.league)!==leagueName);
 
  let games=[
   ...same.filter(isSide),
@@ -246,7 +258,7 @@ function stats(team,league,side){
  let scored=0,conceded=0,count=0;
 
  for(const m of games){
-  const home=String(m.home||"").trim().toLocaleLowerCase("tr-TR")===name;
+  const home=normTeam(m.home)===name;
   scored+=Number(home?m.ft_home:m.ft_away);
   conceded+=Number(home?m.ft_away:m.ft_home);
   count++;
@@ -258,6 +270,7 @@ function stats(team,league,side){
   conceded:count?conceded/count:0
  };
 }
+
 function pmf(mean,k){
  if(k<0)return 0;
  let p=Math.exp(-mean);
