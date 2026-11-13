@@ -83,45 +83,125 @@ async function get(url){
 function safe(s){
  return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
-
 async function loadMatches(){
  const btn=document.getElementById("load");
  btn.disabled=true;
- fixtures=[];results=[];
- document.getElementById("status").textContent="Lig listesi alınıyor...";
+ fixtures=[];results=[];loaded=false;
+ const status=document.getElementById("status");
+ const summary=document.getElementById("summary");
+
  try{
-  const index=await get(BASE+"LEAGUE_INDEX.md");
-  const folders=[...index.matchAll(/^\|\s*`([^`]+)`\s*\|\s*([^|]+)\|/gm)];
-  if(!folders.length)throw Error("Lig listesi okunamadı.");
-  let finished=0,errors=0;
-  const jobs=folders.map(m=>({folder:m[1],league:m[2].trim()}));
-  let next=0;
+  const tasks=[];
+
+  for(let i=90;i>=0;i--){
+   tasks.push({date:dateKey(-i),type:"finished"});
+  }
+  for(let i=0;i<=7;i++){
+   tasks.push({date:dateKey(i),type:"upcoming"});
+  }
+
+  let next=0,errors=0,completed=0;
+
+  function localDate(iso,fallback){
+   if(!iso)return fallback;
+   const d=new Date(iso);
+   if(isNaN(d.getTime()))return fallback;
+   const p={};
+   new Intl.DateTimeFormat("en-GB",{
+    timeZone:"Europe/Istanbul",
+    year:"numeric",month:"2-digit",day:"2-digit"
+   }).formatToParts(d).forEach(x=>p[x.type]=x.value);
+   return p.year+"-"+p.month+"-"+p.day;
+  }
+
+  function localTime(iso){
+   if(!iso)return "";
+   const d=new Date(iso);
+   if(isNaN(d.getTime()))return "";
+   return new Intl.DateTimeFormat("tr-TR",{
+    timeZone:"Europe/Istanbul",
+    hour:"2-digit",minute:"2-digit",hour12:false
+   }).format(d);
+  }
+
   async function worker(){
-   while(next<jobs.length){
-    const job=jobs[next++];
+   while(next<tasks.length){
+    const task=tasks[next++];
     try{
-     const [f,r]=await Promise.all([
-      get(BASE+"data/"+job.folder+"/fixtures_2627.csv"),
-      get(BASE+"data/"+job.folder+"/results_2627.csv")
-     ]);
-     fixtures.push(...parseCSV(f).map(x=>({...x,league:job.league})));
-     results.push(...parseCSV(r).map(x=>({...x,league:job.league})));
-    }catch(e){errors++}
-    finished++;
-    document.getElementById("status").textContent="Ligler kontrol ediliyor: "+finished+"/"+jobs.length;
+     const url="https://sportscore.com/api/v1/fixtures/?sport=football&date="+task.date+"&status="+task.type+"&limit=200";
+     const response=await fetch(url);
+     if(!response.ok)throw Error("HTTP "+response.status);
+
+     const data=await response.json();
+     const matches=Array.isArray(data.matches)?data.matches:[];
+
+     matches.forEach(m=>{
+      if(!m.home||!m.away||!m.competition)return;
+
+      const row={
+       date:localDate(m.time,task.date),
+       time:localTime(m.time),
+       home:String(m.home),
+       away:String(m.away),
+       league:String(m.competition)
+      };
+
+      if(task.type==="upcoming"){
+       fixtures.push(row);
+      }else if(
+       m.status==="finished" &&
+       m.home_score!==null && m.home_score!==undefined &&
+       m.away_score!==null && m.away_score!==undefined
+      ){
+       results.push({
+        ...row,
+        ft_home:String(m.home_score),
+        ft_away:String(m.away_score)
+       });
+      }
+     });
+    }catch(e){
+     errors++;
+    }
+
+    completed++;
+    status.textContent="SportScore maçları yükleniyor: "+completed+"/"+tasks.length;
    }
   }
-  await Promise.all(Array.from({length:6},worker));
+
+  await Promise.all(Array.from({length:5},worker));
+
+  function unique(list){
+   const seen=new Set();
+   return list.filter(m=>{
+    const key=[m.date,m.home,m.away,m.league].join("|").toLocaleLowerCase("tr-TR");
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+   });
+  }
+
+  fixtures=unique(fixtures);
+  results=unique(results);
   loaded=true;
-  document.getElementById("summary").textContent=
-   "Fikstür: "+fixtures.length+" • Geçmiş maç: "+results.length+" • Veri alınan lig: "+(jobs.length-errors);
-  document.getElementById("status").textContent=
-   "Veri yükleme tamamlandı."+(errors?" Bazı liglerin dosyalarına ulaşılamadı":"");
+
+  summary.textContent=
+   "SportScore • Fikstür: "+fixtures.length+
+   " • Geçmiş maç: "+results.length+
+   " • Kontrol edilen gün: "+tasks.length;
+
+  status.textContent="SportScore veri yüklemesi tamamlandı."+
+   (errors?" "+errors+" günlük sorgu alınamadı.":"");
+
   render();
+
  }catch(e){
-  document.getElementById("status").textContent="Veri alınamadı: "+e.message+" İnternet bağlantısını kontrol edip tekrar dene.";
- }finally{btn.disabled=false}
+  status.textContent="Veri alınamadı: "+e.message;
+ }finally{
+  btn.disabled=false;
+ }
 }
+
 
 function dateKey(offset){
  const d=new Date();
